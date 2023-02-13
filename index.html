@@ -1,0 +1,180 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+  <title>福井県 桃太郎電鉄 物件関連スポットマップ</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.1.0/ol.css">
+  <script src="https://cdn.jsdelivr.net/npm/ol@v7.1.0/dist/ol.js"></script>
+</head><body>
+  <h1 id=title></h1>
+  <div>
+    <table id="station-table"></table>
+  </div>
+  <div id="olmap" style="width:auto;height:600px;"></div>
+  <div id="popup" class="ol-popup">
+    <div id="popup-content"></div>
+  </div>
+  <hr />
+  (<a href="https://eiichimiyagawa.github.io/fukui-momotetsu-map/data.csv" target="_blank">data</a>, <a href="https://github.com/EiichiMiyagawa/fukui-momotetsu-map" target="_blank">src</a>)<br>
+  <p><a target="_blank" href="https://icons8.com/icon/OBmVbH2qOGwK/%E3%83%9E%E3%83%BC%E3%82%AB%E3%83%BC">マーカー</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a></p>
+  データ参考：<a href="https://www.konami.com/games/momotetsu/teiban/meguri/area04.html#contents" target="_blank">桃鉄！全国物件めぐり | 桃太郎電鉄 ～昭和 平成 令和も定番！～ 公式サイト</a>, <a href="https://www.pref.fukui.lg.jp/doc/dx-suishin/opendata/list_6_d/fil/soba.csv" target="_blank">おいしい福井県産そば使用店認証店</a>, <a href="https://awara.info/" target="_blank">あわら市観光協会｜公式サイト</a>, <a href="https://fukui-mizuyokan.com/?mode=f5" target="_blank">水ようかん店舗一覧 - 福井冬水ようかん紀行</a>, <a href="https://wakasa-takahama.jp/fugukani/dish/index.html" target="_blank">ふぐ料理の紹介｜若狭高浜でふぐとかにを食べる。</a>
+</div>
+
+<script type="module">
+  import { OLMap } from "https://eiichimiyagawa.github.io/OLMap/v1/OLMap.js";
+  import { CSV } from "https://js.sabae.cc/CSV.js";
+  
+  // iOS14以前に関する対応（top-level await未対応のため）
+  addEventListener("load", async () => {
+    title.textContent = document.title;
+    
+    const url = "./data.csv";
+    const data = await CSV.fetch("./data.csv");
+    const spotData = await CSV.toJSON(data);
+    
+    const map = new OLMap({
+      tileUrl: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+      zoom: 9
+    });
+    
+    map.addTileLayer("pic", "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg");
+    const picLayer = map.getLayer("pic");
+    picLayer.setOpacity(0.6);
+
+    map.addVectorLayer("marker");
+    const markerLayer = map.getLayer("marker");
+
+    const show = () => {
+      markerLayer.getSource().clear(true);
+
+      if (spotData.length) {
+        spotData.forEach((spot) => {
+          const name = spot["URL"] ? `<a href="${spot["URL"]}" target="_blank">${spot["スポット名"]}</a>` : spot["スポット名"];
+          map.addMarker(markerLayer, {
+            longitude: Number(spot["経度"]),
+            latitude: Number(spot["緯度"]),
+            content: `<p>${name}</p><p>${spot["駅名"]}：${spot["物件名"]}</p>`,
+            icon: "./image/icon.png",
+            tag: `${spot["駅名"]}${spot["物件名"]}`
+          });
+        });
+      }
+    }
+
+    const stationKey = [
+      "東尋坊", "福井", "鯖江", "敦賀", "小浜"
+    ];
+    const stationData = {};
+    stationKey.forEach((station) => {
+      stationData[station] = [];
+    });
+    spotData.forEach((spot) => {
+      if (!stationData[spot["駅名"]].includes(spot["物件名"])) {
+        stationData[spot["駅名"]].push(spot["物件名"]);
+      }
+    });
+
+    const stationTable = document.getElementById("station-table");
+    const stationNameTr = document.createElement("tr");
+    stationTable.appendChild(stationNameTr);
+    stationKey.forEach((station) => {
+      const th = document.createElement("th");
+      th.textContent = station;
+      stationNameTr.appendChild(th);
+    });
+    const stationDataTr = document.createElement("tr");
+    stationTable.appendChild(stationDataTr);
+    stationKey.forEach((station) => {
+      const td = document.createElement("td");
+      stationData[station].forEach((data) => {
+        const div = document.createElement("div");
+        const checkbox = document.createElement("input");
+        checkbox.id = `${station}${data}`;
+        checkbox.type = "checkbox";
+        checkbox.checked = true;
+        checkbox.tag = checkbox.id;
+        div.appendChild(checkbox);
+        const label = document.createElement("label");
+        label.textContent = data;
+        label.setAttribute("for", checkbox.id);
+        div.appendChild(label);
+        td.appendChild(div);
+        checkbox.onclick = (event) => {
+          markerLayer.getSource().getFeatures().forEach((feature) => {
+            if (feature.get("tag") !== event.target.tag) {
+              return;
+            }
+            
+            const opacity = event.target.checked ? 1.0 : 0.0;
+            feature.getStyle().getImage().setOpacity(opacity); 
+          });
+          markerLayer.changed();
+        };
+      });
+      stationDataTr.appendChild(td);
+    });
+
+    show();
+  });
+  
+</script>
+
+<style>
+  body {
+    text-align: center;
+    font-family: sans-serif;
+  }
+  textarea {
+    width: 70vw;
+    height: 8em;
+  }
+  #divsels {
+    margin-bottom: .5em;
+  }
+  #prefbox > * {
+    margin: .5em .2em;
+  }
+  .ol-popup {
+    position: absolute;
+    background-color: white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #cccccc;
+    bottom: 12px;
+    left: -50px;
+    min-width: 280px;
+  }
+  .ol-popup:after, .ol-popup:before {
+    top: 100%;
+    border: solid transparent;
+    content: " ";
+    height: 0;
+    width: 0;
+    position: absolute;
+    pointer-events: none;
+  }
+  .ol-popup:after {
+    border-top-color: white;
+    border-width: 10px;
+    left: 48px;
+    margin-left: -10px;
+  }
+  .ol-popup:before {
+    border-top-color: #cccccc;
+    border-width: 11px;
+    left: 48px;
+    margin-left: -11px;
+  }
+  #station-table {
+    border-collapse: collapse;
+    margin-bottom: 8px;
+  }
+  #station-table, td, th {
+    border: 1px #000000 solid;
+  }
+  #station-table, th {
+    text-align: center;
+  }
+  #station-table, td {
+    text-align: left;
+    vertical-align: top;
+  }
+</style>
